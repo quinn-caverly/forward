@@ -1,0 +1,34 @@
+$alpha: #c9c3d4;
+$beta: #e4e1e9;
+$omega: purple;
+$base: #786894;
+
+.main-header {
+  border-bottom: solid 1px rgba(150, 150, 150, 1);
+
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 90px;
+
+  align-items: center;
+}
+
+.sub-header {
+  background-color: $beta;
+  position: absolute;
+  top: 150px;
+  left: 0;
+  right: 0;
+  height: 100px;
+}
+
+.main-title {
+  font-family: 'Quicksand Bold';
+  color: rgba(51, 51, 51, 1);
+  position: absolute;
+  left: 20px;
+  top: 25px;
+  font-size: 30px;
+}

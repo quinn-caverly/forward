@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mongo-pv
+spec:
+  capacity:
+    storage: 30Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: manual
+  local:
+    path: /data/forward/mongo
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+          - key: kubernetes.io/hostname
+            operator: In
+            values:
+              - quinn-caverly-ubuntu
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongo-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: manual
+  resources:
+    requests:
+      storage: 30Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mongo-pod
+  labels:
+    app.kubernetes.io/name: mongo-pod
+spec:
+  volumes:
+  - name: mongo-vol 
+    persistentVolumeClaim:
+      claimName: mongo-pvc
+  containers:
+  - name: mongo-pod
+    image: mongo:4.4
+    ports:
+    - containerPort: 27017
+    volumeMounts:
+    - name: mongo-vol
+      mountPath: /data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo-service
+spec:
+  selector:
+    app.kubernetes.io/name: mongo-pod
+  ports:
+  - port: 27017
+    targetPort: 27017

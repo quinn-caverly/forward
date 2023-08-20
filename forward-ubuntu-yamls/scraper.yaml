@@ -1,0 +1,13 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: go-scraper
+spec:
+  template:
+    spec:
+      containers:
+      - name: go-scraper
+        image: quinncaverly/go-scraper:1.1
+      restartPolicy: Never
+  completions: 1
+  backoffLimit: 0

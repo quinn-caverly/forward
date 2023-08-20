@@ -1,0 +1,13 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: go-prod-build-test
+spec:
+  template:
+    spec:
+      containers:
+      - name: go-prod-build-test
+        image: quinncaverly/go-prod-build-test:latest
+      restartPolicy: Never
+  completions: 1
+  backoffLimit: 0

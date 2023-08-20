@@ -1,0 +1,319 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/rpc"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/gocolly/colly"
+	"github.com/json-iterator/go"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/quinn-caverly/forward-utils/endpointstructs"
+	"github.com/quinn-caverly/forward-utils/rpcimpls"
+)
+
+type Product struct {
+	name        string
+	id          string
+	href        string
+	price       string
+	description string
+	collection  string
+	img_urls    []string
+}
+
+func StussyScrape() {
+	products := []Product{}
+
+	products_colors_xml := make(map[string][]string)
+	traverse_sitemap("https://www.stussy.com/sitemap.xml", &products_colors_xml)
+
+	var collection_identifier string
+	visited_ids := make(map[string]bool)
+	collection := collection_configure(&products, &products_colors_xml, &visited_ids, &collection_identifier)
+
+	collections := [...]string{"tees", "water-shorts", "sweats", "tops-shirts", "knits", "bottoms", "outerwear", "headwear", "accessories", "eyewear"}
+	for _, val := range collections {
+		collection_identifier = val
+		before := len(products)
+		scrape_collection(collection, "https://www.stussy.com/collections/"+val, &products)
+		log.Println("Collection ", val, " has been scraped. ", len(products)-before, " products added.")
+	}
+
+	write_to_dbs(products)
+}
+
+func scrape_collection(c *colly.Collector, base_url string, products *[]Product) {
+	prev_products_len := -1
+	page := 1
+	for prev_products_len < len(*products) {
+		prev_products_len = len(*products)
+		c.Visit(base_url + "?page=" + fmt.Sprint(page))
+	}
+}
+
+// the collector for the collection pages. ex) sweats, shorts, tees, ...
+func collection_configure(products *[]Product, products_colors_xml *map[string][]string, visited_ids *map[string]bool, collection_identifier *string) *colly.Collector {
+	collection := colly.NewCollector()
+
+	collection.OnHTML("div[class]", func(e *colly.HTMLElement) {
+		if e.Attr("class") != "product-card" {
+			return
+		}
+
+		dom := e.DOM
+		href, exists := dom.Find("a[href]").Attr("href")
+		if exists == false {
+			log.Println("href which corresponds to product's page did not exist. This should happen once per collection. The collection is: ", collection_identifier)
+			return
+		}
+		var price, name, description string
+		product := product_configure(&price, &name, &description)
+		product.Visit("https://www.stussy.com" + href)
+
+		exp := regexp.MustCompile(`\/products\/([\w]+)`)
+		match := exp.FindString(href)
+		id := regexp.MustCompile(`\/products\/`).ReplaceAllString(match, "")
+
+		_, in_visited_ids := (*visited_ids)[id]
+		if in_visited_ids == false {
+			img_urls := []string{}
+			color_collector := color_configure(&img_urls)
+			color_urls := (*products_colors_xml)[id]
+			for i := range color_urls {
+				color_collector.Visit(color_urls[i])
+			}
+			(*visited_ids)[id] = true
+
+			*products = append(*products, Product{name: name, id: id, href: href, price: price, description: description, collection: *collection_identifier, img_urls: img_urls})
+		}
+	})
+
+	return collection
+}
+
+func product_configure(price, name, description *string) *colly.Collector {
+	product := colly.NewCollector()
+
+	product.OnHTML("div[class='shopify-section']", func(e *colly.HTMLElement) {
+		script := e.DOM.Find("script[type='application/ld+json']")
+		json_bytes := []byte(script.Text())
+
+		*price = jsoniter.Get(json_bytes, "offers", 0, "price").ToString()
+		*name = jsoniter.Get(json_bytes, "name").ToString()
+		*description = jsoniter.Get(json_bytes, "description").ToString()
+	})
+
+	return product
+}
+
+// start at the sitemap.xml, then find the xml elem which contains products because this link changes
+// then, keys are products and values are the slice which has the links to each different color of product
+func traverse_sitemap(site_map_url string, products_colors_xml *map[string][]string) {
+	original_sitemap_collector := colly.NewCollector()
+	products_sitemap_collector := colly.NewCollector()
+
+	original_sitemap_collector.OnXML("//loc", func(e *colly.XMLElement) {
+		loc := e.Text
+		if strings.Contains(loc, "product") {
+			products_sitemap_collector.Visit(e.Text)
+		}
+	})
+
+	products_sitemap_collector.OnXML("//loc", func(e *colly.XMLElement) {
+		loc := e.Text
+
+		exp := regexp.MustCompile(`\/products\/([\w]+)`)
+		match := exp.FindString(loc)
+		id := regexp.MustCompile(`\/products\/`).ReplaceAllString(match, "")
+
+		cur_colors, exists := (*products_colors_xml)[id]
+		if exists == false {
+			(*products_colors_xml)[id] = []string{loc}
+		} else {
+			for _, val := range (*products_colors_xml)[id] {
+				if val == loc {
+					fmt.Println(val, loc)
+					return
+				}
+			}
+			(*products_colors_xml)[id] = append(cur_colors, loc)
+		}
+	})
+
+	original_sitemap_collector.Visit(site_map_url)
+}
+
+func color_configure(img_urls *[]string) *colly.Collector {
+	color_collector := colly.NewCollector()
+
+	color_collector.OnHTML("img[loading='lazy']", func(e *colly.HTMLElement) {
+		srcset := e.Attr("srcset")
+		srcs := strings.Split(srcset, ",")
+
+		for i := range srcs {
+			//TODO clean up this code, I don't know why the src turns out to be index 4
+			if strings.Contains(srcs[i], "1440w") {
+				src := "https:" + strings.Split(srcs[i], " ")[4]
+
+				for _, val := range *img_urls {
+					if val == src {
+						return
+					}
+				}
+
+				*img_urls = append(*img_urls, src)
+			}
+		}
+	})
+
+	return color_collector
+}
+
+// these are the structs which are accepted by the RPC Golang server which writes to filesystem
+type AllWriteInfo struct {
+	args    endpointstructs.ProductContainerForWritingToDB
+	product SlimmerProduct
+}
+
+type SlimmerProduct struct {
+	id          string
+	name        string
+	href        string
+	price       string
+	description string
+	collection  string
+}
+
+// iterate through product, write to both filesystem for images and Mongodb
+// also need to handle if the product already exists but was fetched at an earlier time
+func write_to_dbs(products []Product) {
+	all_write_info_slice := gen_all_write_info(products)
+
+	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI("mongodb://mongo-service:27017"))
+	if err != nil {
+		log.Fatal("Was not able to connect to the mongodb via the service, ", err)
+	}
+	defer client.Disconnect(context.Background())
+	collection := client.Database("products").Collection("stussy")
+
+	for i := range all_write_info_slice {
+		write_elem(all_write_info_slice[i], collection)
+	}
+}
+
+func write_elem(awi AllWriteInfo, coll *mongo.Collection) {
+
+	var result bson.M
+	err := coll.FindOne(
+		context.TODO(),
+		bson.D{{Key: "_id", Value: awi.product.id}},
+	).Decode(&result)
+
+	// this means that the product is not in the collection yet
+	if err == mongo.ErrNoDocuments {
+		// so, first we write the images to the filesystem via the image writer microservice
+		client, err := rpcimpls.ConnectToGoWritePod()
+		if err != nil {
+			log.Fatal("Error when connecting to go-write-pod, ", err)
+		}
+		err = client.Call("WriteService.Write", awi.args, nil)
+		if err != nil {
+			log.Fatal("RPC call error:", err)
+		}
+		// if there is no error, the image writing was successful
+
+		colors := map[string]string{}
+		for i := range awi.args.Colors {
+			colors[awi.args.Colors[i].Color] = awi.args.Date_scraped
+		}
+
+		doc := bson.D{
+			{Key: "_id", Value: awi.product.id},
+			{Key: "name", Value: awi.product.name},
+			{Key: "href", Value: awi.product.href},
+			{Key: "price", Value: awi.product.price},
+			{Key: "collection", Value: awi.product.collection},
+			{Key: "description", Value: awi.product.description},
+			{Key: "colors", Value: colors},
+		}
+
+		_, err = coll.InsertOne(context.TODO(), doc)
+		if err != nil {
+			log.Fatal("Writing to Mongo after writing images failed, ", err)
+		}
+
+	} else if err != nil {
+		log.Fatal("Error produced on query collection for id but was not an ErrNoDocs error, ", err)
+	}
+}
+
+func gen_all_write_info(products []Product) []AllWriteInfo {
+	all_write_info_slice := []AllWriteInfo{}
+
+	est, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		log.Fatal("Was not able to load EST timezone: ", err)
+	}
+	date_scraped := time.Now().In(est).Format("2006-01-02")
+	collection := "stussy"
+
+	for i := range products {
+		args := Args{}
+		args.Collection = collection
+		args.Date_scraped = date_scraped
+
+		colors_map, err := parse_image_urls_to_colors(products[i])
+		if err != nil {
+			continue
+		}
+		colors := []Color{}
+		for key := range colors_map {
+			color := Color{Color: key}
+			color.Pic_urls = colors_map[key].Pic_urls
+			colors = append(colors, color)
+		}
+		args.Colors = colors
+		args.Id = products[i].id
+
+		slimmer_prod := SlimmerProduct{id: products[i].id, href: products[i].href, description: products[i].description, price: products[i].price, name: products[i].name, collection: products[i].collection}
+		all_write_info_slice = append(all_write_info_slice, AllWriteInfo{args: args, product: slimmer_prod})
+	}
+
+	return all_write_info_slice
+}
+
+func parse_image_urls_to_colors(product Product) (map[string]Color, error) {
+	// for each product, we need an Args in the format above for writing images
+	colors_map := make(map[string]Color)
+	for _, url := range product.img_urls {
+		//TODO static Regexp grab, not sure how this could be less fragile
+		re := regexp.MustCompile(`_([a-zA-Z0-9]+)_`)
+		matches := re.FindAllStringSubmatch(url, -1)
+		// in this case, it will usually be a special product, like keychain and unnecessary
+		// will only be 0 if it does not follow the schema for products
+		if len(matches) == 0 {
+			return nil, errors.New("product did not follow schema, probably unnecessary")
+		}
+		color := matches[0][1]
+
+		val, ok := colors_map[color]
+		if ok == true {
+			val.Pic_urls = append(val.Pic_urls, url)
+			colors_map[color] = val
+		} else {
+			colors_map[color] = Color{Color: color, Pic_urls: []string{url}}
+		}
+	}
+
+	return colors_map, nil
+}

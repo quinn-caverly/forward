@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: go-write-pod
+  labels:
+    app.kubernetes.io/name: go-write-pod
+spec:
+  volumes:
+  - name: images-claim-vol
+    persistentVolumeClaim:
+     claimName: images-claim
+  containers:
+    - name: go-write-pod
+      image: quinncaverly/go-write-pod:latest
+      ports:
+        - containerPort: 8080
+      volumeMounts:
+        - name: images-claim-vol
+          mountPath: /data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: go-write-service
+spec:
+  selector:
+    app.kubernetes.io/name: go-write-pod
+  ports:
+    - name: rcp
+      protocol: TCP
+      port: 8080
+      targetPort: 8080

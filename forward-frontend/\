@@ -1,0 +1,19 @@
+import './App.scss';
+import './styles.scss'
+
+function App() {
+  return (
+    <div>
+      <div class="main-header">
+        <div class="main-title">
+           github.com/quinn-caverly
+        </div>
+      </div>
+      <div class="sub-header">
+        test
+      </div>
+    </div>
+  );
+}
+
+export default App;

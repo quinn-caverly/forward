@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: go-product-builder-load-balancer
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: go-product-builder-pod
+  ports:
+    - name: rcp
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo-load-balancer
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: mongo-pod
+  ports:
+    - protocol: TCP
+      port: 27017
+      targetPort: 27017

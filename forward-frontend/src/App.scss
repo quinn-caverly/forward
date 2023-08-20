@@ -1,0 +1,148 @@
+.main {
+    position: absolute;
+    left: 0px;
+    right: 20px;
+    bottom: 20px;
+    top: 90px;
+}
+
+.github-icon {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    bottom: 50%;
+}
+
+.left-button {
+    position: absolute;
+    left: 0px;
+    top: 50%;
+    bottom: 50%;
+}
+
+.right-button {
+    position: absolute;
+    top: 50%;
+    bottom: 50%;
+    left: 96.5%;
+}
+
+
+.deck {
+    position: absolute;
+    left: 30px;
+    right: 30px;
+    bottom: 0px;
+    top: 0px;
+}
+
+.hand {
+    position: absolute;
+    left: 60px;
+    right: 60px;
+    top: 0;
+    bottom: 0;
+
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+
+    row-gap: 10px;
+    column-gap: 40px;
+}
+
+.card-holder {
+  //outline: 15px ridge $alpha;
+  //box-shadow: 0 0 0 15px skyblue;
+  position: relative;
+  border-radius: 10px;
+  width: fill;
+  height: fill;
+
+  .card {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    top: 30px;
+
+    .image-holder {
+      bottom: 0;
+      top: 0;
+      left: 0;
+      right: 0;
+
+      height: 100%;
+      width: 100%;
+
+      background-color: gray;
+      border-radius: 15px;
+
+      //https://getcssscan.com/css-box-shadow-examples
+      box-shadow: rgba(50, 50, 93, 0.25) 0px 2px 5px -1px, rgba(0, 0, 0, 0.3) 0px 1px 3px -1px;
+      box-shadow: rgba(0, 0, 0, 0.16) 0px 3px 6px, rgba(0, 0, 0, 0.23) 0px 3px 6px;
+
+      .image {
+        position: absolute;
+        border-radius: 15px;
+        width: 100%;
+      }
+    }
+
+    .brand-name {
+      position: absolute;
+      right: 15px;
+      top: 15px;
+      font-size: 25px;
+
+      color: black;
+    }
+
+    .bottom-section {
+      position: absolute;
+    }
+
+    .text-holder {
+        position:absolute;
+        left: 15px;
+        right: 15px;
+        bottom: 15px;
+        height: 80px;
+
+        background-color: rgba(256, 256, 256, 0.85);
+        border-radius: 10px;
+        box-shadow: rgba(50, 50, 93, 0.25) 0px 2px 5px -1px, rgba(0, 0, 0, 0.3) 0px 1px 3px -1px;
+
+        font-size: 10px;
+
+        .item-name {
+          font-weight: 100;
+          position: absolute;
+          left: 15px;
+          top: 10px;
+          font-size: 25px;
+
+          color: black;
+        }
+
+    }
+
+    .size-bar {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      right: 20px;
+      height: 100px;
+      border-radius: 10px;
+      background-color: transparent;
+
+      display: flex;
+
+      .color {
+          background-color: transparent;
+          height: 90%;
+          width: 10%;
+      }
+    }
+  }
+}

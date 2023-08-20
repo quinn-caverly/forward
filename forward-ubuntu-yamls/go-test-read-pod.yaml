@@ -1,0 +1,13 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: go-test-read-pod
+spec:
+  template:
+    spec:
+      containers:
+      - name: go-test-read-pod
+        image: quinncaverly/go-test-read-pod:latest
+      restartPolicy: Never
+  completions: 1
+  backoffLimit: 0

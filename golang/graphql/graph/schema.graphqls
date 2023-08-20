@@ -1,0 +1,30 @@
+type ProductDisplayContainer {
+    Up: UniqueProduct!
+    ColorContainers: [ColorContainer]
+}
+
+type UniqueProduct {
+    Id: String!
+    Brand: String!
+    Name: String!
+    UrlOnBrandSite: String!
+    Price: String!
+    Description: String!
+    ClothingType: String!
+}
+
+scalar Image
+
+type ColorContainer {
+    ColorName: String!
+    DateScraped: String!
+    ImageBytes: [String!]!
+}
+
+type Query {
+    getProductById(Id: String!): ProductDisplayContainer
+
+    countUsableProducts: Int!
+
+    generateRandomProds(Num: Int!): [String!]!
+}
